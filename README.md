@@ -127,8 +127,7 @@ This text is displayed on the screen as a boot message when booting, provided th
 
 If boot messages are not available, but you still want to find out the IP assigned via DHCP, you can try the commands `arp -a` and `ip neigh show`, or in extreme cases, simply scan your entire network range with `netdiscover`.
 
-
-When you run the ip command you should see that the configuration has been applied. Here some command to verify that the wireless connection works.
+When you run the ip command you should see that the configuration has been applied. Here some commands to verify that the wireless connection works.
 
 First check the ip address:
 
@@ -164,7 +163,7 @@ ping -n -c 1 -w 5 -I wlan0 1.1.1.1
 The output should look something like this:
 
 ```text
-PING 1.1.1.1 (1.1.1.1) from 192.168.1.100 eth0: 56(84) bytes of data.
+PING 1.1.1.1 (1.1.1.1) from 192.168.1.100 wlan0: 56(84) bytes of data.
 64 bytes from 1.1.1.1: icmp_seq=1 ttl=58 time=27.3 ms
 ```
 
@@ -186,7 +185,7 @@ initramfs-wifi=no
 
 ## Changing the kernel cmdline
 
-How this is done depends on your hardware. If you are using a Raspberry Pi you need to change the file `cmdline.txt` in your `/boot` directory. If you are using grub as bootloader you need to change the kernel parameters in the variable `GRUB_CMDLINE_LINUX` in the file `/etc/default/grub`. The part that you need to add in case of dhcp is:
+How change the kernel cmdline depends on your hardware and/or software. If you are using a Raspberry Pi you need to change the file `cmdline.txt` in your `/boot` directory. If you are using grub as bootloader you need to change the kernel parameters in the variable `GRUB_CMDLINE_LINUX` in the file `/etc/default/grub`. The part that you need to add in case of DHCP is:
 
 ```text
 ip=:::::wlan0:dhcp initramfs-wifi=wlan0
@@ -218,6 +217,25 @@ update-initramfs -v -c -k all
 ```
 
 The `-v` argument causes a verbose output so that you can see what happens under the hood.
+
+## Possible missing firmware
+
+If you see the warning `Possible missing firmware` during the update, you can ignore it:
+
+```text
+W: Possible missing firmware /lib/firmware/.../... for module ...
+```
+
+The reason for this is that the initramfs update script determines the firmware files to be copied by running `modinfo modulename` which returns a list of filenames and in some cases filename patterns that contain wildcards like `*` and `?`. For example the WiFi of a Raspberry Pi 3b depends on the kernel module `brcmfmac`. The command `modinfo brcmfmac` outputs these lines:
+
+```text
+...
+firmware:       brcm/brcmfmac*-sdio.*.bin
+firmware:       brcm/brcmfmac*-sdio.*.txt
+...
+```
+
+The problem is that the script behind the `update-initramfs` command interprets these entries as filenames and not as filename patterns and then "thinks" that some firmware files are missing. All other scripts I have seen on the subject of WiFi in initramfs do not take this into account either. but initramfs-wifi does, it can copy these firmware files, and only then it will work in all cases. The `brcmfmac` module of the Raspberry Pi 3b for example would not work without the NVRAM config files that matches the filename pattern above. Unfortunately, the warning message remains even if everything was copied correctly.
 
 ## Usage
 
