@@ -87,7 +87,7 @@ systemctl start wpa_supplicant.service NetworkManager.service
 
 ## IP Configuration
 
-The configuration of the IP address and the selection of the network interface is done via [kernel cmdline parameters](https://git.kernel.org/pub/scm/libs/klibc/klibc.git/plain/usr/kinit/ipconfig/README.ipconfig).
+The configuration of the IP address and the selection of the network interface is done via [kernel cmdline parameters](https://www.kernel.org/doc/Documentation/filesystems/nfs/nfsroot.txt).
 
 It is highly recommended to explicitly specify the name of the network interface to be used, because otherwise *the device that received the first reply* will be used, and there is no guarantee that this will be the wireless interface.
 
@@ -105,7 +105,7 @@ ip=192.168.1.100::192.168.1.1:255.255.255.0:your-hostname:wlan0:static:8.8.8.8:8
 
 ## Testing the IP Configuration
 
-If you want, you can test and verify that the ip configuration works. Under the hood a tool with the name `ipconfig` is used by the initramfs. To carry out the test, the WiFi hotspot must be connected first (see above). Once connected, run the following command in another terminal window:
+If you want, you can test and verify that the ip configuration works. Under the hood a tool with the name [`ipconfig`](https://git.kernel.org/pub/scm/libs/klibc/klibc.git/plain/usr/kinit/ipconfig/README.ipconfig) is used by the initramfs. To carry out the test, the WiFi hotspot must be connected first (see above). Once connected, run the following command in another terminal window:
 
 ```bash
 /usr/lib/klibc/bin/ipconfig :::::wlan0:dhcp
