@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+rm -fr \
+  initramfs-wifi_*_* \
+  initramfs-wifi/debian/files \
+  initramfs-wifi/debian/initramfs-wifi/ \
+  initramfs-wifi/debian/initramfs-wifi.substvars \
+  initramfs-wifi/debian/initramfs-wifi.debhelper.log \
+  initramfs-wifi/debian/.debhelper/
+
+exit 0

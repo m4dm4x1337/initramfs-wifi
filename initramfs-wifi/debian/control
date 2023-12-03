@@ -1,0 +1,20 @@
+Source: initramfs-wifi
+Section: net
+Priority: optional
+Maintainer: m4dm4x1337 <madmax@earth.local>
+Bugs: https://github.com/m4dm4x1337/initramfs-wifi/issues
+Standards-Version: 4.6.2
+
+Package: initramfs-wifi
+Architecture: all
+Depends: coreutils (>= 8.20-1), lsb-base, initramfs-tools (>= 0.100), wpasupplicant
+Enhances: dropbear-initramfs, initramfs-admin
+Suggests: dropbear-initramfs, firmware-linux-free, firmware-misc-nonfree, initramfs-admin
+Homepage: https://github.com/m4dm4x1337/initramfs-wifi
+Description: Initramfs WiFi support
+ This package provides WiFi support for the initramfs in the early stages of 
+ the boot process. It includes necessary dependencies such as wpa_supplicant, 
+ wireless kernel modules, and associated firmware files into the initrd so 
+ that the kernel can initialize WiFi hardware in the early phase of the boot 
+ process. The WiFi support integrates seamlessly with Dropbear and other 
+ network-capable initramfs tools.

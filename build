@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -e
+
+find ./initramfs-wifi/usr/share/initramfs-tools -type f -exec sh -n {} + || exit $?
+
+./clean
+
+cd initramfs-wifi
+
+case "$1" in
+  --signed-source) dpkg-buildpackage --build=source --sign-key=B1C14B67C1FF9F12 ;;
+         --source) dpkg-buildpackage --build=source --no-sign ;;
+                *) dpkg-buildpackage --build=binary --no-sign ;;
+
+esac
+
+cd ..
+
+exit 0

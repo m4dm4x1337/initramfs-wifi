@@ -1,0 +1,125 @@
+#!/bin/sh
+
+# Initramfs-Wifi (hook script)
+# Copyright (C) 2023 m4dm4x1337
+#
+# This file is part of the initramfs-wifi debian package.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# no pre requirement
+PREREQ=""
+
+prereqs()
+{
+    echo "${PREREQ}"
+}
+
+case "$1" in
+    prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+# import /usr/share/initramfs-tools/scripts/functions
+. /usr/share/initramfs-tools/hook-functions
+
+# http://www.marcfargas.com/posts/enable-wireless-debian-initramfs/
+# https://github.com/cw-ansible/cw.wireless/blob/master/files/etc/initramfs-tools/hooks/wpa_supplicant
+# https://www.cyberciti.biz/faq/linux-find-wireless-driver-chipset/
+# https://askubuntu.com/questions/654820/how-to-find-pci-address-of-an-ethernet-interface
+# https://gist.github.com/csghone/7c0c756a179cda0ae4afe1deb50d5a07
+
+if [ -s /etc/initramfs-wifi/initramfs.conf ]; then
+  . /etc/initramfs-wifi/initramfs.conf || true
+fi
+
+copy_exec /sbin/wpa_supplicant
+copy_exec /sbin/wpa_cli
+copy_file config /etc/initramfs-wifi/wpa_supplicant.conf /etc/wpa_supplicant.conf
+
+modules=
+
+case "${WIRELESS:-loaded}" in
+  all)
+    for filename in $( find /lib/modules/$version/kernel/drivers/net/wireless/ -type f -name '*.ko' ); do
+      filename="${filename##*/}"
+      modules="$modules ${filename%.ko}"
+    done
+    if [ -n "$modules" ]; then
+      for pattern in $( echo $modules | xargs -r modinfo -F firmware ); do
+        for filename in /lib/firmware/$pattern; do
+          copy_file firmware $filename
+        done
+      done
+    fi
+    copy_modules_dir kernel/drivers/net/wireless
+  ;;
+  loaded)
+	for filename in $(cut -f1 -d' ' /proc/modules | xargs -r modinfo -F filename); do
+      case "$filename" in
+        */kernel/drivers/net/wireless/*)
+          filename="${filename##*/}"
+          modules="$modules ${filename%.ko}"
+        ;;
+      esac
+	done
+    if [ -n "$modules" ]; then
+      for pattern in $( echo $modules | xargs -r modinfo -F firmware ); do
+        for filename in /lib/firmware/$pattern; do
+          copy_file firmware $filename
+        done
+      done
+	  manual_add_modules $modules
+    fi
+  ;;
+  list)
+    if [ ! -f /etc/initramfs-wifi/modules.conf ]; then
+      echo "[WARNING] the file '/etc/initramfs-wifi/modules.conf' does not exist" >&2
+      exit 0
+    fi
+    while IFS= read -r kmod || [ -n "$kmod" ]; do
+      kmod="${kmod%%#*}" # strip comment
+      kmod="${kmod#"${kmod%%[![:space:]]*}"}" # ltrim
+      kmod="${kmod%"${kmod##*[![:space:]]}"}" # rtrim
+      if [ -z "$kmod" ] || ! filename=$(modinfo -F filename "$kmod"); then
+        continue
+      fi
+      case "$filename" in
+        */kernel/drivers/net/wireless/*)
+          modules="$modules ${kmod%.ko}"
+        ;;
+        *)
+          echo "[WARNING] the file '$filename' is not a wireless module" >&2
+        ;;
+      esac
+    done < /etc/initramfs-wifi/modules.conf
+    if [ -n "$modules" ]; then
+      for pattern in $( echo $modules | xargs -r modinfo -F firmware ); do
+        for filename in /lib/firmware/$pattern; do
+          copy_file firmware $filename
+        done
+      done
+	  manual_add_modules $modules
+    fi
+  ;;
+  none)
+    : # 
+  ;;
+  *)
+    echo "[WARNING] 'WIRELESS=$WIRELESS' in '/etc/initramfs-wifi/initramfs.conf' is invalid" >&2
+  ;;
+esac
+

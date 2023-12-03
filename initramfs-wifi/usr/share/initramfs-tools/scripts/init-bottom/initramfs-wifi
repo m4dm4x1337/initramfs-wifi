@@ -1,0 +1,113 @@
+#!/bin/sh
+
+# Initramfs-Wifi (init-bottom script)
+# Copyright (C) 2023 m4dm4x1337
+#
+# This file is part of the initramfs-wifi debian package.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+#quiet=n
+
+PREREQ=""
+
+prereqs() {
+  echo "$PREREQ"
+}
+
+case "$1" in
+  prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+# import /usr/share/initramfs-tools/scripts/functions
+. /scripts/functions
+
+# show begin msg
+log_begin_msg "Killing wpa_supplicant"
+
+# check .pid file
+if [ ! -s /run/wpa_supplicant.pid ]; then
+  log_warning_msg "/run/wpa_supplicant.pid does not exist or is empty"
+  exit 0
+fi
+
+# read .pid file
+if ! read -r PID < /run/wpa_supplicant.pid || [ -z "$PID" ]; then
+  log_failure_msg "failed to read pid in /run/wpa_supplicant.pid"
+  exit 0
+fi
+
+# check pid
+if ! kill -0 $PID 2>/dev/null; then
+  log_warning_msg "the pid '$PID' does not belong to a running process"
+  exit 0
+fi
+
+# read process name
+if ! read -r COMM < /proc/$PID/comm || [ -z "$COMM" ]; then
+  log_failure_msg "failed to read process name in '/proc/$PID/comm'"
+  exit 0
+fi
+
+# check process name
+if [ "$COMM" != "wpa_supplicant" ]; then
+  log_warning_msg "the '$PID' does not belong to a wpa_supplicant process"
+  exit 0
+fi
+
+# terminate - the clean way
+if ! STDERR=$( wpa_cli terminate -p/run/wpa_supplicant -i$INTERFACE 2>&1 ); then
+  log_warning_msg "the command to terminate the wpa_supplicant process has failed: wpa_cli terminate -p/run/wpa_supplicant -i$INTERFACE (EXIT STATUS: $?) [REASON: $STDERR]"
+  # wait 1 second
+  sleep 1
+fi
+
+# check if pid is still running
+if ! kill -0 $PID 2>/dev/null; then
+  # show success msg
+  log_success_msg "the wpa_supplicant process with the pid '$PID' was successfully terminate by running wpa_cli terminate -p/run/wpa_supplicant -i$INTERFACE (EXIT STATUS: $?) [RESULT: $STDERR]"
+  exit 0
+fi
+
+# kill wpa_supplicant
+if ! STDERR=$( kill $PID 2>&1 ); then
+  log_warning_msg "the command to kill the wpa_supplicant process has failed: kill $PID (EXIT STATUS: $?) [REASON: $STDERR]"
+fi
+
+# wait 1 second
+sleep 1
+
+# check if pid is still running
+if kill -0 $PID 2>/dev/null; then
+  log_warning_msg "the wpa_supplicant process with the pid '$PID' is still running"
+  # kill wpa_supplicant harder
+  if ! STDERR=$( kill -KILL $PID ); then
+    log_warning_msg "the command to kill the wpa_supplicant process harder has also failed: kill -KILL $PID (EXIT STATUS: $?) [REASON: $STDERR]"
+  fi
+  # wait
+  sleep 1
+fi
+
+# check if pid is still running
+if kill -0 $PID 2>/dev/null; then
+  # show failure msg
+  log_failure_msg "giving up to kill the wpa_supplicant process with the pid '$PID'"
+else
+  # show success msg
+  log_success_msg "the wpa_supplicant process with the pid '$PID' was successfully killed"
+fi
+
