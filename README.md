@@ -185,7 +185,7 @@ initramfs-wifi=no
 
 ## Changing the kernel cmdline
 
-How change the kernel cmdline depends on your hardware and/or software. If you are using a Raspberry Pi you need to change the file `cmdline.txt` in your `/boot` directory. If you are using grub as bootloader you need to change the kernel parameters in the variable `GRUB_CMDLINE_LINUX` in the file `/etc/default/grub`. The part that you need to add in case of DHCP is:
+How to change the kernel cmdline depends on your hardware and/or software. If you are using a Raspberry Pi you need to change the file `cmdline.txt` in your `/boot` directory. If you are using grub as bootloader you need to change the kernel parameters in the variable `GRUB_CMDLINE_LINUX` in the file `/etc/default/grub`. The part that you need to add in case of DHCP is:
 
 ```text
 ip=:::::wlan0:dhcp initramfs-wifi=wlan0
