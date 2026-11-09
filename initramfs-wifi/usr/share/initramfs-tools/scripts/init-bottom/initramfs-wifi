@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Initramfs-Wifi (init-bottom script)
+# initramfs-wifi (init-bottom script)
 # Copyright (C) 2023 m4dm4x1337
 #
 # This file is part of the initramfs-wifi debian package.
@@ -36,6 +36,13 @@ esac
 # import /usr/share/initramfs-tools/scripts/functions
 . /scripts/functions
 
+do_sleep() {
+  # BusyBox ash 1.36 can interrupt its sleep builtin on SIGCHLD, which makes
+  # background-process polling loops run too fast.  Use the external applet.
+  # https://web.archive.org/web/20241009195646/https://bugs.busybox.net/show_bug.cgi?id=15619
+  /bin/sleep "$@"
+}
+
 # show begin msg
 log_begin_msg "Killing wpa_supplicant"
 
@@ -70,16 +77,16 @@ if [ "$COMM" != "wpa_supplicant" ]; then
 fi
 
 # terminate - the clean way
-if ! STDERR=$( wpa_cli terminate -p/run/wpa_supplicant -i$INTERFACE 2>&1 ); then
-  log_warning_msg "the command to terminate the wpa_supplicant process has failed: wpa_cli terminate -p/run/wpa_supplicant -i$INTERFACE (EXIT STATUS: $?) [REASON: $STDERR]"
+if ! STDERR=$( wpa_cli terminate -p/run/wpa_supplicant 2>&1 ); then
+  log_warning_msg "the command to terminate the wpa_supplicant process has failed: wpa_cli terminate -p/run/wpa_supplicant (EXIT STATUS: $?) [REASON: $STDERR]"
   # wait 1 second
-  sleep 1
+  do_sleep 1
 fi
 
 # check if pid is still running
 if ! kill -0 $PID 2>/dev/null; then
   # show success msg
-  log_success_msg "the wpa_supplicant process with the pid '$PID' was successfully terminate by running wpa_cli terminate -p/run/wpa_supplicant -i$INTERFACE (EXIT STATUS: $?) [RESULT: $STDERR]"
+  log_success_msg "the wpa_supplicant process with the pid '$PID' was successfully terminate by running wpa_cli terminate -p/run/wpa_supplicant (EXIT STATUS: $?) [RESULT: $STDERR]"
   exit 0
 fi
 
@@ -89,7 +96,7 @@ if ! STDERR=$( kill $PID 2>&1 ); then
 fi
 
 # wait 1 second
-sleep 1
+do_sleep 1
 
 # check if pid is still running
 if kill -0 $PID 2>/dev/null; then
@@ -99,7 +106,7 @@ if kill -0 $PID 2>/dev/null; then
     log_warning_msg "the command to kill the wpa_supplicant process harder has also failed: kill -KILL $PID (EXIT STATUS: $?) [REASON: $STDERR]"
   fi
   # wait
-  sleep 1
+  do_sleep 1
 fi
 
 # check if pid is still running
@@ -110,4 +117,3 @@ else
   # show success msg
   log_success_msg "the wpa_supplicant process with the pid '$PID' was successfully killed"
 fi
-

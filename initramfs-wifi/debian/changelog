@@ -1,6 +1,19 @@
-initramfs-wifi (1.0) experimental; urgency=low
+initramfs-wifi (1.1) experimental; urgency=medium
+
+  * Include all regular wireless modules and selected staging drivers by
+    default.
+  * Add support for compressed firmware and older initramfs-tools releases.
+  * Add explicit kernel command-line activation and interface detection.
+  * Wait for wireless interfaces to appear before starting wpa_supplicant.
+  * Work around interrupted BusyBox sleep calls in initramfs scripts.
+  * Improve wpa_supplicant shutdown, package scripts, build checks, and
+    documentation.
+
+ -- m4dm4x1337 <madmax@example.invalid>  Mon, 09 Nov 2026 18:21:54 +0100
+
+initramfs-wifi (1.0) experimental; urgency=medium
 
   * Initial release
   
 
- -- m4dm4x1337 <madmax@earth.local>  Fri, 3 Nov 2023 17:00:00 +0100
+ -- m4dm4x1337 <madmax@example.invalid>  Fri, 03 Nov 2023 17:00:00 +0100

@@ -1,6 +1,9 @@
 initramfs-wifi_*_*
+initramfs-wifi_*.dsc
+initramfs-wifi_*.tar.*
 initramfs-wifi/debian/files
 initramfs-wifi/debian/initramfs-wifi/
 initramfs-wifi/debian/initramfs-wifi.substvars
 initramfs-wifi/debian/initramfs-wifi.debhelper.log
+initramfs-wifi/debian/debhelper-build-stamp
 initramfs-wifi/debian/.debhelper/

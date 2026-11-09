@@ -2,19 +2,39 @@
 
 set -e
 
-find ./initramfs-wifi/usr/share/initramfs-tools -type f -exec sh -n {} + || exit $?
+PACKAGE=initramfs-wifi
+VERSION=1.1
+CHANGES_FILE="../${PACKAGE}_${VERSION}_amd64.changes"
+
+require_package() { # $1 = package
+  if ! dpkg-query --show "$1" >/dev/null 2>&1; then
+    echo "Required package '$1' is not installed" >&2
+    exit 1
+  fi
+}
+
+require_package dpkg-dev
+require_package debhelper
+require_package lintian
+
+find "./${PACKAGE}/usr/share/initramfs-tools" -type f -exec sh -n {} +
 
 ./clean
 
-cd initramfs-wifi
+cd "$PACKAGE"
 
 case "$1" in
-  --signed-source) dpkg-buildpackage --build=source --sign-key=B1C14B67C1FF9F12 ;;
-         --source) dpkg-buildpackage --build=source --no-sign ;;
-                *) dpkg-buildpackage --build=binary --no-sign ;;
-
+  --signed-source)
+    dpkg-buildpackage --build=source --sign-key=B1C14B67C1FF9F12
+    ;;
+  --source)
+    dpkg-buildpackage --build=source --no-sign
+    ;;
+  *)
+    dpkg-buildpackage --build=binary --unsigned-changes --unsigned-source --no-check-builddeps
+    lintian --allow-root "$CHANGES_FILE"
+    cp --verbose "../${PACKAGE}_${VERSION}_all.deb" ../../../http-server/
+    ;;
 esac
 
 cd ..
-
-exit 0

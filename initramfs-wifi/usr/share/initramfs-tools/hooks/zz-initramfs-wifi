@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Initramfs-Wifi (hook script)
+# initramfs-wifi (hook script)
 # Copyright (C) 2023 m4dm4x1337
 #
 # This file is part of the initramfs-wifi debian package.
@@ -48,41 +48,135 @@ fi
 
 copy_exec /sbin/wpa_supplicant
 copy_exec /sbin/wpa_cli
-copy_file config /etc/initramfs-wifi/wpa_supplicant.conf /etc/wpa_supplicant.conf
+# copy_file config /etc/initramfs-wifi/wpa_supplicant.conf /etc/wpa_supplicant.conf # copy_file is missing in older releases
+if [ "${verbose:-}" = "y" ]; then
+  echo "Adding config /etc/initramfs-wifi/wpa_supplicant.conf"
+fi
+[ -d "${DESTDIR}/etc" ] || mkdir -p "${DESTDIR}/etc"
+cp -pP /etc/initramfs-wifi/wpa_supplicant.conf "${DESTDIR}/etc/wpa_supplicant.conf"
+
+copy_firmware_file() { # $1 = source path
+  local source= target=
+
+  if [ -z "$1" ] || [ ! -e "$1" ]; then
+    return 1
+  fi
+
+  source="$1"
+  target="${DESTDIR}$1"
+
+  if [ -L "$source" ]; then
+    source=$( readlink -f "$source" 2>/dev/null ) || return 1
+    if [ -z "$source" ] || [ ! -e "$source" ]; then
+      return 1
+    fi
+  fi
+
+  if [ "${verbose:-}" = "y" ]; then
+    echo "Adding firmware $1"
+  fi
+
+  [ -d "${target%/*}" ] || mkdir -p "${target%/*}"
+  rm -f "$target"
+  cp -p "$source" "$target"
+}
+
+copy_module_firmware() { # $1 = module name
+  local pattern= path= suffix= filename= found=
+
+  for pattern in $( modinfo -k "$version" -F firmware "$1" 2>/dev/null ); do
+    found=
+    for suffix in "" ".zst" ".xz"; do
+      for path in \
+        "/lib/firmware/updates/$version" \
+        "/lib/firmware/updates" \
+        "/lib/firmware/$version" \
+        "/lib/firmware"; do
+        for filename in "$path"/$pattern"$suffix"; do
+          if [ -e "$filename" ]; then
+            copy_firmware_file "$filename"
+            found=1
+          fi
+        done
+      done
+    done
+    if [ -z "$found" ] && [ "${verbose:-}" = "y" ]; then
+      echo "[WARNING] missing firmware $pattern for module $1" >&2
+    fi
+  done
+}
+
+is_wireless_staging_module() { # $1 = module file path
+  local module=
+
+  if [ -z "$1" ] || [ ! -f "$1" ]; then
+    return 1
+  fi
+
+  module="${1##*/}"
+  module="${module%%.ko*}"
+
+  case "$module" in
+    prism2_usb|r8187se|r8188eu|r8192e_pci|r8192ee|r8192u_usb|r8712u|r8822be|rtl8821ae|vt6655_stage|vt6656_stage|w35und|wlags49_h25_cs|wlags49_h2_cs)
+      return 0
+    ;;
+  esac
+
+  return 1
+}
 
 modules=
 
-case "${WIRELESS:-loaded}" in
+case "${WIRELESS:-all}" in
   all)
-    for filename in $( find /lib/modules/$version/kernel/drivers/net/wireless/ -type f -name '*.ko' ); do
-      filename="${filename##*/}"
-      modules="$modules ${filename%.ko}"
+    # add all regular wireless kernel modules
+    for filename in $( find /lib/modules/$version/kernel/drivers/net/wireless/ -type f -name '*.ko*' ); do
+      module="${filename##*/}"
+      module="${module%%.ko*}"
+      modules="$modules $module"
     done
     if [ -n "$modules" ]; then
-      for pattern in $( echo $modules | xargs -r modinfo -F firmware ); do
-        for filename in /lib/firmware/$pattern; do
-          copy_file firmware $filename
-        done
+      for module in $modules; do
+        copy_module_firmware "$module"
       done
     fi
     copy_modules_dir kernel/drivers/net/wireless
+
+    # add selected staging wireless kernel modules
+    modules=
+    for filename in $( find /lib/modules/$version/kernel/drivers/staging/ -type f -name '*.ko*' 2>/dev/null ); do
+      if ! is_wireless_staging_module "$filename"; then
+        continue
+      fi
+      module="${filename##*/}"
+      module="${module%%.ko*}"
+      modules="$modules $module"
+    done
+    if [ -n "$modules" ]; then
+      for module in $modules; do
+        if manual_add_modules "$module"; then
+          copy_module_firmware "$module"
+        fi
+      done
+    fi
   ;;
   loaded)
-	for filename in $(cut -f1 -d' ' /proc/modules | xargs -r modinfo -F filename); do
+    while read -r module other; do
+      if ! filename=$( modinfo -k "$version" -F filename "$module" 2>/dev/null ); then
+        continue
+      fi
       case "$filename" in
         */kernel/drivers/net/wireless/*)
-          filename="${filename##*/}"
-          modules="$modules ${filename%.ko}"
+          modules="$modules ${module%.ko}"
         ;;
       esac
-	done
+    done < /proc/modules
     if [ -n "$modules" ]; then
-      for pattern in $( echo $modules | xargs -r modinfo -F firmware ); do
-        for filename in /lib/firmware/$pattern; do
-          copy_file firmware $filename
-        done
+      for module in $modules; do
+        if manual_add_modules "$module"; then
+          copy_module_firmware "$module"
+        fi
       done
-	  manual_add_modules $modules
     fi
   ;;
   list)
@@ -94,7 +188,7 @@ case "${WIRELESS:-loaded}" in
       kmod="${kmod%%#*}" # strip comment
       kmod="${kmod#"${kmod%%[![:space:]]*}"}" # ltrim
       kmod="${kmod%"${kmod##*[![:space:]]}"}" # rtrim
-      if [ -z "$kmod" ] || ! filename=$(modinfo -F filename "$kmod"); then
+      if [ -z "$kmod" ] || ! filename=$( modinfo -k "$version" -F filename "$kmod" 2>/dev/null ); then
         continue
       fi
       case "$filename" in
@@ -107,12 +201,11 @@ case "${WIRELESS:-loaded}" in
       esac
     done < /etc/initramfs-wifi/modules.conf
     if [ -n "$modules" ]; then
-      for pattern in $( echo $modules | xargs -r modinfo -F firmware ); do
-        for filename in /lib/firmware/$pattern; do
-          copy_file firmware $filename
-        done
+      for module in $modules; do
+        if manual_add_modules "$module"; then
+          copy_module_firmware "$module"
+        fi
       done
-	  manual_add_modules $modules
     fi
   ;;
   none)
@@ -122,4 +215,3 @@ case "${WIRELESS:-loaded}" in
     echo "[WARNING] 'WIRELESS=$WIRELESS' in '/etc/initramfs-wifi/initramfs.conf' is invalid" >&2
   ;;
 esac
-

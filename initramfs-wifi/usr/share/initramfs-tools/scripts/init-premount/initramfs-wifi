@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Initramfs-Wifi (init-premount script)
+# initramfs-wifi (init-premount script)
 # Copyright (C) 2023 m4dm4x1337
 #
 # This file is part of the initramfs-wifi debian package.
@@ -36,11 +36,50 @@ esac
 # import /usr/share/initramfs-tools/scripts/functions
 . /scripts/functions
 
+do_sleep() {
+  # BusyBox ash 1.36 can interrupt its sleep builtin on SIGCHLD, which makes
+  # background-process polling loops run too fast.  Use the external applet.
+  # https://web.archive.org/web/20241009195646/https://bugs.busybox.net/show_bug.cgi?id=15619
+  /bin/sleep "$@"
+}
+
+do_has_wireless_modules() {
+  find /lib/modules /usr/lib/modules \
+    -path '*/kernel/drivers/net/wireless/*' \
+    -type f -name '*.ko*' 2>/dev/null | grep -q .
+}
+
+do_wait_for_wireless_interface() { # $1 = optional interface name $2 = timeout
+  local device= limit="${2:-5}"
+
+  while [ "$limit" -gt 0 ]; do
+    if [ -n "$1" ]; then
+      if [ -e "/sys/class/net/$1/wireless" ]; then
+        echo "$1"
+        return 0
+      fi
+    else
+      for device in /sys/class/net/*; do
+        if [ -e "$device/device" ] && [ -e "$device/wireless" ]; then
+          echo "${device##*/}"
+          return 0
+        fi
+      done
+    fi
+    do_sleep 1
+    limit=$(( limit - 1 ))
+  done
+
+  return 1
+}
+
 # show begin msg
 log_begin_msg "Starting wpa_supplicant"
 
 # parse kernel boot command line
 INITRAMFS_WIFI=
+INITRAMFS_WIFI_ENABLED=
+INITRAMFS_WIFI_INTERFACE=
 for CMD_PARAM in $(cat /proc/cmdline); do
   case ${CMD_PARAM} in
     initramfs[-.]wifi=*)
@@ -49,9 +88,26 @@ for CMD_PARAM in $(cat /proc/cmdline); do
   esac
 done
 
+# interpret initramfs-wifi kernel parameter
+case "$INITRAMFS_WIFI" in
+       1|yes|enabled) INITRAMFS_WIFI_ENABLED=1 ;;
+       0|no|disabled) INITRAMFS_WIFI_ENABLED=0 ;;
+                   "") INITRAMFS_WIFI_ENABLED=  ;;
+                    *) INITRAMFS_WIFI_ENABLED=1 ; INITRAMFS_WIFI_INTERFACE="$INITRAMFS_WIFI" ;;
+esac
+
 # check if initramfs-wifi is disabled
-if [ "$INITRAMFS_WIFI" = "0" -o "$INITRAMFS_WIFI" = "no" -o "$INITRAMFS_WIFI" = "disabled" ]; then
+if [ "$INITRAMFS_WIFI_ENABLED" = "0" ]; then
   log_warning_msg "disabled, found kernel parameter initramfs-wifi=$INITRAMFS_WIFI"
+  exit 0
+elif [ -z "$INITRAMFS_WIFI_ENABLED" ] && [ -z "$WPA_SUPPLICANT_INTERFACE" ]; then
+  log_warning_msg "disabled, neither 'initramfs-wifi=' nor 'wpa_supplicant.interface=' was found in the kernel command line"
+  exit 0
+fi
+
+# check if initramfs contains wireless kernel modules at all
+if ! do_has_wireless_modules; then
+  log_failure_msg "no wireless kernel modules found in the initramfs, did you configure '/etc/initramfs-wifi/initramfs.conf' and run 'update-initramfs -v -u -k all' ?"
   exit 0
 fi
 
@@ -136,34 +192,18 @@ fi
 INTERFACE=
 
 # detect wireless network interface
-if [ -n "$INITRAMFS_WIFI" ]; then # EXAMPLE: initramfs-wifi=wlan0
-  if [ -e /sys/class/net/$INITRAMFS_WIFI/wireless ]; then
-    INTERFACE=$INITRAMFS_WIFI
-  else
-    log_failure_msg "the 'initramfs-wifi' kernel parameter value '$INITRAMFS_WIFI' is not the name of a wireless network interface"
+if [ -n "$INITRAMFS_WIFI_INTERFACE" ]; then
+  if ! INTERFACE="$( do_wait_for_wireless_interface "$INITRAMFS_WIFI_INTERFACE" 5 )" || [ -z "$INTERFACE" ]; then
+    log_failure_msg "the wireless network interface '$INITRAMFS_WIFI_INTERFACE' did not appear after waiting 5 seconds"
     exit 0
   fi
 elif [ -n "$WPA_SUPPLICANT_INTERFACE" ]; then # EXAMPLE wpa_supplicant.interface=wlan0
-  if [ -e "/sys/class/net/$WPA_SUPPLICANT_INTERFACE/wireless" ]; then
-    INTERFACE="$WPA_SUPPLICANT_INTERFACE"
-  else
-    log_failure_msg "the 'wpa_supplicant.interface' kernel parameter value '$WPA_SUPPLICANT_INTERFACE' is not the name of a wireless network interface"
+  if ! INTERFACE="$( do_wait_for_wireless_interface "$WPA_SUPPLICANT_INTERFACE" 5 )" || [ -z "$INTERFACE" ]; then
+    log_failure_msg "the wireless network interface '$WPA_SUPPLICANT_INTERFACE' did not appear after waiting 5 seconds"
     exit 0
   fi
-else
-  for DEVICE in /sys/class/net/*; do
-    if [ -e "$DEVICE/device" ]; then
-      if [ -e "$DEVICE/wireless" ]; then
-        INTERFACE="${DEVICE##*/}"
-        break
-      fi
-    fi
-  done
-fi
-
-# exit if there is no wireless interface
-if [ -z "$INTERFACE" ]; then
-  log_failure_msg "no wireless network interface found, did you configure '/etc/initramfs-wifi/initramfs.conf' and run 'update-initramfs -v -u -k all' ?"
+elif ! INTERFACE="$( do_wait_for_wireless_interface "" 5 )" || [ -z "$INTERFACE" ]; then
+  log_failure_msg "no wireless network interface found after waiting 5 seconds"
   exit 0
 fi
 
@@ -204,7 +244,7 @@ fi
 
 # waiting $LIMIT seconds for wpa_state=COMPLETED
 while [ $LIMIT -gt 0 ] && ! wpa_state_completed; do
-  sleep 1
+  do_sleep 1
   echo -n "+"
   LIMIT=$(( LIMIT - 1 ))
 done
@@ -231,4 +271,3 @@ if ! wpa_state_completed; then
 else
   log_success_msg "wpa_supplicant is running (Interface: $INTERFACE)"
 fi
-
