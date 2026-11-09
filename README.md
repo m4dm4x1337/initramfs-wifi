@@ -167,7 +167,7 @@ PING 1.1.1.1 (1.1.1.1) from 192.168.1.100 wlan0: 56(84) bytes of data.
 
 ## Wi-Fi Interface Configuration
 
-By default, the initramfs-wifi premount script is disabled. It only starts if at least one of the kernel cmdline parameters `initramfs-wifi=` or `wpa_supplicant.interface=` is present.
+By default, the initramfs-wifi premount script is disabled. It only starts if the `initramfs-wifi=` kernel cmdline parameter is present with an enabling value or an interface name.
 
 The `initramfs-wifi=` kernel parameter can be used in three different ways:
 
@@ -193,12 +193,6 @@ initramfs-wifi=0
 
 These values explicitly disable initramfs-wifi.
 
-If `initramfs-wifi=` is not specified at all, then the script can still be enabled by specifying only the `wpa_supplicant.interface=` kernel parameter:
-
-```text
-wpa_supplicant.interface=wlan0
-```
-
 If no wireless interface is found immediately, the script waits up to 5 seconds before it gives up.
 
 ## Changing the kernel cmdline
@@ -221,12 +215,6 @@ If you want to keep the interface name separate, you can also use:
 ip=:::::wlan0:dhcp initramfs-wifi=yes wpa_supplicant.interface=wlan0
 ```
 
-Or, without `initramfs-wifi=`, you can enable it implicitly like this:
-
-```text
-ip=:::::wlan0:dhcp wpa_supplicant.interface=wlan0
-```
-
 If you are using grub, then run `update-grub` afterwards.
 
 ## Additional kernel cmdline parameters
@@ -241,7 +229,7 @@ There are a few other additional kernel parameters that can be used for debuggin
 * `wpa_supplicant.debug` - Enable debugging in wpa_supplicant if set to `yes` or `1` or `2` or `3`
 * `wpa_supplicant.dumpconf` - Dump the wpa_supplicant config if set to `yes` or `1`
 * `wpa_supplicant.dumplogs` - Dump the wpa_supplicant logs if set to `yes` or `1`
-* `wpa_supplicant.interface` - Determines the wireless interface to be used if `initramfs-wifi=` does not already specify an interface name. This parameter also enables initramfs-wifi if `initramfs-wifi=` is not present at all.
+* `wpa_supplicant.interface` - Determines the wireless interface to be used when `initramfs-wifi=` enables the script without specifying an interface name. This parameter does not enable initramfs-wifi by itself.
 * `wpa_supplicant.timeout` - Determine how many seconds to wait before giving up connecting to the Wi-Fi hotspot. The default value is `30` seconds.
 
 ## Update the initramfs

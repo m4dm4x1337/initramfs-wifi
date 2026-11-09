@@ -100,8 +100,8 @@ esac
 if [ "$INITRAMFS_WIFI_ENABLED" = "0" ]; then
   log_warning_msg "disabled, found kernel parameter initramfs-wifi=$INITRAMFS_WIFI"
   exit 0
-elif [ -z "$INITRAMFS_WIFI_ENABLED" ] && [ -z "$WPA_SUPPLICANT_INTERFACE" ]; then
-  log_warning_msg "disabled, neither 'initramfs-wifi=' nor 'wpa_supplicant.interface=' was found in the kernel command line"
+elif [ -z "$INITRAMFS_WIFI_ENABLED" ]; then
+  log_warning_msg "disabled, kernel parameter 'initramfs-wifi=' was not found"
   exit 0
 fi
 
