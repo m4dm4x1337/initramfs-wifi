@@ -31,7 +31,7 @@ There are three configuration files in `/etc/initramfs-wifi`:
   * `ap_scan` - See the wpa_supplicant man page for details.
   * `scan_ssid` - See the wpa_supplicant man page for details.
 
-The default is `WIRELESS=all`, so wireless kernel modules are added automatically unless you explicitly choose a different mode. This only controls which wireless kernel modules are copied into the initramfs. The initramfs-wifi premount script itself is disabled by default unless it is enabled via kernel cmdline parameters. All you have to do is to enter your Wi-Fi credentials in `wpa_supplicant.conf`. To maximize hardware compatibility you may also need to install the package `firmware-misc-nonfree`.
+The default is `WIRELESS=all`, so wireless kernel modules are added automatically unless you explicitly choose a different mode. This setting only controls which wireless kernel modules are copied into the initramfs. To use Wi-Fi during early boot, enter your credentials in `wpa_supplicant.conf`, enable the premount script with the `initramfs-wifi=` kernel cmdline parameter, and update the initramfs after changing the configuration. Depending on your hardware, you may also need to install the `firmware-misc-nonfree` package.
 
 Changes in the configuration files will not take effect until the initramfs is updated, which means that you need to run `update-initramfs`, but continue reading before you do it.
 
