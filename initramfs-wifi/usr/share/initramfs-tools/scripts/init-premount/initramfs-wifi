@@ -43,7 +43,7 @@ do_sleep() {
   /bin/sleep "$@"
 }
 
-do_has_wireless_modules() {
+do_check_for_wireless_kernel_modules() {
   find /lib/modules /usr/lib/modules \
     -path '*/kernel/drivers/net/wireless/*' \
     -type f -name '*.ko*' 2>/dev/null | grep -q .
@@ -91,22 +91,18 @@ done
 # interpret initramfs-wifi kernel parameter
 case "$INITRAMFS_WIFI" in
        1|yes|enabled) INITRAMFS_WIFI_ENABLED=1 ;;
-       0|no|disabled) INITRAMFS_WIFI_ENABLED=0 ;;
-                   "") INITRAMFS_WIFI_ENABLED=  ;;
+    ""|0|no|disabled) INITRAMFS_WIFI_ENABLED=0 ;;
                     *) INITRAMFS_WIFI_ENABLED=1 ; INITRAMFS_WIFI_INTERFACE="$INITRAMFS_WIFI" ;;
 esac
 
 # check if initramfs-wifi is disabled
 if [ "$INITRAMFS_WIFI_ENABLED" = "0" ]; then
-  log_warning_msg "disabled, found kernel parameter initramfs-wifi=$INITRAMFS_WIFI"
-  exit 0
-elif [ -z "$INITRAMFS_WIFI_ENABLED" ]; then
-  log_warning_msg "disabled, kernel parameter 'initramfs-wifi=' was not found"
+  log_warning_msg "disabled, kernel parameter 'initramfs-wifi=' is missing or has the disabling value '$INITRAMFS_WIFI'"
   exit 0
 fi
 
 # check if initramfs contains wireless kernel modules at all
-if ! do_has_wireless_modules; then
+if ! do_check_for_wireless_kernel_modules; then
   log_failure_msg "no wireless kernel modules found in the initramfs, did you configure '/etc/initramfs-wifi/initramfs.conf' and run 'update-initramfs -v -u -k all' ?"
   exit 0
 fi

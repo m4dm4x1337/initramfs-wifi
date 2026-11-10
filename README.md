@@ -2,57 +2,91 @@
 
 ## Description
 
-### Wi-Fi support for the initramfs
+### Wi-Fi support in the initramfs
 
-This package provides Wi-Fi support for the initramfs in the early stages of the boot process. It includes necessary dependencies such as wpa_supplicant, wireless kernel modules, and associated firmware files into the initrd so that the kernel can initialize Wi-Fi hardware in the early phase of the boot process. The Wi-Fi support integrates seamlessly with Dropbear and other network-capable initramfs tools.
+This package provides Wi-Fi connectivity during the early stages of the boot
+process. It copies `wpa_supplicant`, wireless kernel modules, and associated
+firmware into the initramfs so that the kernel can initialize Wi-Fi hardware
+before the root file system is available. It integrates with Dropbear and other
+network-capable initramfs tools.
 
 ## Installation
 
-Download the Debian package and run this commands:
+Download the Debian package and run the following command:
 
 ```bash
 sudo dpkg -i initramfs-wifi_1.1_all.deb || sudo apt-get -f install
 ```
 
+Commands in this guide that change the network configuration or rebuild the
+initramfs require root privileges. Run them from a root shell or use `sudo` as
+shown where appropriate.
+
 ## Wi-Fi Configuration
 
-There are three configuration files in `/etc/initramfs-wifi`:
+The `/etc/initramfs-wifi` directory contains three configuration files:
 
-* `initramfs.conf` - This file contains the variable `WIRELESS`, which is used to determine which wireless modules should be integrated into the initramfs. Possible values are:
-  * `all` - Add all wireless kernel modules (Maximizes hardware compatibility, but also causes the initramfs to become bigger)
-  * `loaded` - Add currently loaded wireless kernel modules
-  * `list` - Add modules from the file `/etc/initramfs-wifi/modules.conf` (Only wireless kernel modules are taken into account)
-  * `none` - Do not include any wireless kernel modules
-* `modules.conf` - The wireless kernel modules are read from this file if the `WIRELESS` variable in `initramfs.conf` has the value `list`, otherwise this file has no effect.
-* `wpa_supplicant.conf` - This file contains the Wi-Fi name and passphrase as well as some other configuration options:
-  * `ssid` - The name of the Wi-Fi
-  * `psk` - The pre shared key (passphrase) of the Wi-Fi
-  * `country` - The country code (optional)
-  * `ap_scan` - See the wpa_supplicant man page for details.
-  * `scan_ssid` - See the wpa_supplicant man page for details.
+* `initramfs.conf` contains the `WIRELESS` variable, which determines which
+  wireless kernel modules are included in the initramfs. The supported values
+  are:
+  * `all` - Include all wireless kernel modules. This maximizes hardware
+    compatibility but produces a larger initramfs.
+  * `loaded` - Include the currently loaded wireless kernel modules.
+  * `list` - Include the modules listed in
+    `/etc/initramfs-wifi/modules.conf`. Only wireless kernel modules are used.
+  * `none` - Do not include any wireless kernel modules.
+* `modules.conf` lists the wireless kernel modules to include when `WIRELESS`
+  is set to `list`. It has no effect in the other modes.
+* `wpa_supplicant.conf` contains the Wi-Fi credentials and other connection
+  settings:
+  * `ssid` - The Wi-Fi network name.
+  * `psk` - The Wi-Fi pre-shared key (passphrase).
+  * `country` - The optional country code.
+  * `ap_scan` - See the `wpa_supplicant` manual page for details.
+  * `scan_ssid` - See the `wpa_supplicant` manual page for details.
 
-The default is `WIRELESS=all`, so wireless kernel modules are added automatically unless you explicitly choose a different mode. This setting only controls which wireless kernel modules are copied into the initramfs. To use Wi-Fi during early boot, enter your credentials in `wpa_supplicant.conf`, enable the premount script with the `initramfs-wifi=` kernel cmdline parameter, and update the initramfs after changing the configuration. Depending on your hardware, you may also need to install the `firmware-misc-nonfree` package.
+The default is `WIRELESS=all`, so wireless kernel modules are included
+automatically unless you explicitly select another mode. This setting controls
+only which modules are copied into the initramfs. To use Wi-Fi during early
+boot, enter your credentials in `wpa_supplicant.conf`, enable the premount
+script with the `initramfs-wifi=` kernel command-line parameter, and rebuild
+the initramfs after changing the configuration. Depending on your hardware,
+you may also need to install the `firmware-misc-nonfree` package.
 
-Changes in the configuration files will not take effect until the initramfs is updated, which means that you need to run `update-initramfs`, but continue reading before you do it.
+Configuration changes do not take effect until the initramfs is rebuilt. The
+required command is described below, but you may want to test the configuration
+first.
 
 ## Testing the Wi-Fi Configuration
 
-If you want, you can first verify whether your `wpa_supplicant.conf` file really works. To do this you must first deactivate the `NetworkManager.service`, the `wpa_supplicant.service` and unblock the Wi-Fi to prevent conflicts:
+You can test `wpa_supplicant.conf` before rebuilding the initramfs. The
+following test is intended to be run locally on a desktop system such as Ubuntu
+with GNOME, where NetworkManager manages the Wi-Fi connection. Do not run it
+through SSH or another remote connection that depends on the interface being
+tested, because stopping NetworkManager may disconnect you from the system.
+
+On systems that do not use NetworkManager, stop the service that currently
+manages the wireless interface instead and adapt the commands accordingly.
+On a NetworkManager-based desktop, stop NetworkManager and the system
+`wpa_supplicant` service, then unblock wireless devices to prevent conflicts:
 
 ```bash
-systemctl stop wpa_supplicant.service NetworkManager.service && rfkill unblock wlan
+sudo systemctl stop wpa_supplicant.service NetworkManager.service
+sudo rfkill unblock wlan
 ```
 
-Now you can test the connection:
+Now test the connection:
 
 ```bash
-wpa_supplicant -c /etc/initramfs-wifi/wpa_supplicant.conf -i wlan0
+sudo wpa_supplicant -c /etc/initramfs-wifi/wpa_supplicant.conf -i wlan0
 ```
 
-It is also possible to pipe the configuration via STDIN. For the sake of completeness, here is an example in which you can also see how a typical wpa_supplicant configuration file looks like. It is usually enough to specify the `ssid` and the `psk` (pre-shared key):
+You can also pass the configuration through standard input. The following
+example shows what a typical `wpa_supplicant` configuration looks like. In most
+cases, specifying the `ssid` and `psk` is sufficient:
 
 ```bash
-cat << CONF | wpa_supplicant -c /dev/stdin -i wlan0
+cat << CONF | sudo wpa_supplicant -c /dev/stdin -i wlan0
 ctrl_interface=/run/wpa_supplicant
 #ap_scan=0
 #country=
@@ -65,7 +99,8 @@ network={
 CONF
 ```
 
-If everything is OK you should see `CTRL-EVENT-CONNECTED` in the output:
+If the connection succeeds, the output should contain
+`CTRL-EVENT-CONNECTED`:
 
 ```text
 Successfully initialized wpa_supplicant
@@ -77,17 +112,22 @@ wlan0: WPA: Key negotiation completed with ff:ee:dd:cc:bb:aa [PTK=CCMP GTK=CCMP]
 wlan0: CTRL-EVENT-CONNECTED - Connection to ff:ee:dd:cc:bb:aa completed [id=0 id_str=]
 wlan0: CTRL-EVENT-REGDOM-CHANGE init=COUNTRY_IE type=COUNTRY alpha2=DE
 ```
-Press `CTRL-C` to terminate wpa_supplicant and start the previously stopped services:
+
+Press `CTRL-C` to terminate `wpa_supplicant`, then restart the services that
+were stopped for the test:
 
 ```bash
-systemctl start wpa_supplicant.service NetworkManager.service
+sudo systemctl start wpa_supplicant.service NetworkManager.service
 ```
 
 ## IP Configuration
 
-The configuration of the IP address and the selection of the network interface is done via [kernel cmdline parameters](https://www.kernel.org/doc/Documentation/filesystems/nfs/nfsroot.txt).
+The IP address and network interface are configured through
+[kernel command-line parameters](https://www.kernel.org/doc/Documentation/filesystems/nfs/nfsroot.txt).
 
-It is highly recommended to explicitly specify the name of the network interface to be used, because otherwise *the device that received the first reply* will be used, and there is no guarantee that this will be the wireless interface.
+Explicitly specifying the network interface is strongly recommended. Without
+an interface name, the first interface to receive a reply is used, and there
+is no guarantee that it will be the wireless interface.
 
 A DHCP configuration looks like this:
 
@@ -95,7 +135,7 @@ A DHCP configuration looks like this:
 ip=:::::wlan0:dhcp
 ```
 
-And a static configuration could look like this:
+A static configuration could look like this:
 
 ```text
 ip=192.168.1.100::192.168.1.1:255.255.255.0:your-hostname:wlan0:static:8.8.8.8:8.8.4.4
@@ -103,13 +143,17 @@ ip=192.168.1.100::192.168.1.1:255.255.255.0:your-hostname:wlan0:static:8.8.8.8:8
 
 ## Testing the IP Configuration
 
-If you want, you can test and verify that the ip configuration works. Under the hood a tool with the name [`ipconfig`](https://git.kernel.org/pub/scm/libs/klibc/klibc.git/plain/usr/kinit/ipconfig/README.ipconfig) is used by the initramfs. To carry out the test, the Wi-Fi hotspot must be connected first (see above). Once connected, run the following command in another terminal window:
+The initramfs uses
+[`ipconfig`](https://git.kernel.org/pub/scm/libs/klibc/klibc.git/plain/usr/kinit/ipconfig/README.ipconfig)
+to configure the network. To test the IP configuration, first connect to the
+Wi-Fi network as described above. Then run the following command in another
+terminal:
 
 ```bash
-/usr/lib/klibc/bin/ipconfig :::::wlan0:dhcp
+sudo /usr/lib/klibc/bin/ipconfig :::::wlan0:dhcp
 ```
 
-The output should look something like this:
+The output should look similar to this:
 
 ```text
 IP-Config: wlan0 hardware address aa:bb:cc:dd:ee:ff mtu 1500 DHCP
@@ -117,26 +161,32 @@ IP-Config: wlan0 guessed broadcast address 192.168.1.255
 IP-Config: wlan0 complete (dhcp from 192.168.1.1):
  address: 192.168.1.100   broadcast: 192.168.1.255   netmask: 255.255.255.0
  gateway: 192.168.1.1     dns0     : 192.168.1.1     dns1   : 0.0.0.0
- rootserver: 192.168.1.1  rootpath: 
- filename  : 
+ rootserver: 192.168.1.1  rootpath:
+ filename  :
 ```
 
-This text is displayed on the screen as a boot message when booting, provided the log output settings are configured accordingly. I won't go into that any further here. It's important to know is that in case of DHCP this text tells you the ip to be used if you want to connect to that computer via SSH. It is therefore advisable to ensure that boot messages are output.
+During boot, this information appears as a boot message if the logging settings
+allow it. With DHCP, the message shows the assigned IP address, which you need
+to connect to the computer through SSH. Configure the system to display boot
+messages if you need this information during early boot.
 
-If boot messages are not available, but you still want to find out the IP assigned via DHCP, you can try the commands `arp -a` and `ip neigh show`, or in extreme cases, simply scan your entire network range with `netdiscover`.
+If boot messages are unavailable, you can try `arp -a` or `ip neigh show` to
+find the address assigned through DHCP. As a last resort, scan the local network
+range with `netdiscover`.
 
-When you run the ip command you should see that the configuration has been applied. Here some commands to verify that the wireless connection works.
+After running `ipconfig`, use the following commands to verify the network
+configuration and connectivity.
 
-First check the ip address:
+First, check the IP address:
 
 ```bash
 ip -4 -br addr show dev wlan0
 ```
 
-The output should look something like this:
+The output should look similar to this:
 
 ```text
-wlan0            UP             192.168.1.100/24 
+wlan0            UP             192.168.1.100/24
 ```
 
 Then check the routes:
@@ -145,20 +195,20 @@ Then check the routes:
 ip -4 route show dev wlan0
 ```
 
-The output should look something like this:
+The output should look similar to this:
 
 ```text
-default via 192.168.1.1 
-192.168.1.0/24 proto kernel scope link src 192.168.1.100 
+default via 192.168.1.1
+192.168.1.0/24 proto kernel scope link src 192.168.1.100
 ```
 
-Then ping a host in the internet:
+Finally, ping a host on the Internet:
 
 ```bash
 ping -n -c 1 -w 5 -I wlan0 1.1.1.1
 ```
 
-The output should look something like this:
+The output should look similar to this:
 
 ```text
 PING 1.1.1.1 (1.1.1.1) from 192.168.1.100 wlan0: 56(84) bytes of data.
@@ -167,9 +217,12 @@ PING 1.1.1.1 (1.1.1.1) from 192.168.1.100 wlan0: 56(84) bytes of data.
 
 ## Wi-Fi Interface Configuration
 
-By default, the initramfs-wifi premount script is disabled. It only starts if the `initramfs-wifi=` kernel cmdline parameter is present with an enabling value or an interface name.
+The initramfs-wifi premount script is disabled by default. It starts only when
+the `initramfs-wifi=` kernel command-line parameter contains an enabling value
+or an interface name.
 
-The `initramfs-wifi=` kernel parameter can be used in three different ways:
+Use one of the following values to enable initramfs-wifi with automatic
+interface detection:
 
 ```text
 initramfs-wifi=yes
@@ -177,80 +230,118 @@ initramfs-wifi=enabled
 initramfs-wifi=1
 ```
 
-These values enable initramfs-wifi without explicitly selecting a wireless interface. In this case the script uses the first wireless interface it finds, unless `wpa_supplicant.interface=` is also specified.
+Unless `wpa_supplicant.interface=` is also specified, the script uses the first
+wireless interface it finds.
+
+To select an interface directly, assign its name to `initramfs-wifi=`:
 
 ```text
 initramfs-wifi=wlan0
 ```
 
-Any other value is interpreted as the name of the wireless interface to be used. If `initramfs-wifi=` contains an interface name, then `wpa_supplicant.interface=` is ignored.
+Any value other than the documented enabling and disabling values is interpreted
+as an interface name. When `initramfs-wifi=` specifies an interface,
+`wpa_supplicant.interface=` is ignored.
+
+Use one of the following values to disable initramfs-wifi explicitly:
 
 ```text
+initramfs-wifi=
 initramfs-wifi=no
 initramfs-wifi=disabled
 initramfs-wifi=0
 ```
 
-These values explicitly disable initramfs-wifi.
+If no wireless interface is immediately available, the script waits up to five
+seconds before giving up.
 
-If no wireless interface is found immediately, the script waits up to 5 seconds before it gives up.
+## Changing the Kernel Command Line
 
-## Changing the kernel cmdline
-
-How to change the kernel cmdline depends on your hardware and/or software. If you are using a Raspberry Pi you need to change the file `cmdline.txt` in your `/boot` directory. If you are using grub as bootloader you need to change the kernel parameters in the variable `GRUB_CMDLINE_LINUX` in the file `/etc/default/grub`. The part that you need to add in case of DHCP can look like this:
+The method used to change the kernel command line depends on the hardware and
+boot loader. On a Raspberry Pi, edit `cmdline.txt` in the `/boot` directory. If
+you use GRUB, add the parameters to `GRUB_CMDLINE_LINUX` in `/etc/default/grub`.
+For example, a DHCP configuration can look like this:
 
 ```text
 ip=:::::wlan0:dhcp initramfs-wifi=wlan0
 ```
 
-If you want initramfs-wifi to auto-detect the wireless interface, you can use:
+To let initramfs-wifi detect the wireless interface automatically, use:
 
 ```text
 ip=:::::wlan0:dhcp initramfs-wifi=yes
 ```
 
-If you want to keep the interface name separate, you can also use:
+To specify the interface separately, use:
 
 ```text
 ip=:::::wlan0:dhcp initramfs-wifi=yes wpa_supplicant.interface=wlan0
 ```
 
-If you are using grub, then run `update-grub` afterwards.
-
-## Additional kernel cmdline parameters
-
-There are a few other additional kernel parameters that can be used for debugging:
-
-* `wpa_supplicant.ap_scan` - Overrides the `ap_scan` value in the `wpa_supplicant.conf` file within the initramfs.
-* `wpa_supplicant.country` - Overrides the `country` value in the `wpa_supplicant.conf` file within the initramfs.
-* `wpa_supplicant.scan_ssid` - Overrides the `scan_ssid` value in the `wpa_supplicant.conf` file within the initramfs.
-* `wpa_supplicant.ssid` - Overrides the `ssid` value in the `wpa_supplicant.conf` file within the initramfs.
-* `wpa_supplicant.psk` - Overrides the `psk` value in the `wpa_supplicant.conf` file within the initramfs.
-* `wpa_supplicant.debug` - Enable debugging in wpa_supplicant if set to `yes` or `1` or `2` or `3`
-* `wpa_supplicant.dumpconf` - Dump the wpa_supplicant config if set to `yes` or `1`
-* `wpa_supplicant.dumplogs` - Dump the wpa_supplicant logs if set to `yes` or `1`
-* `wpa_supplicant.interface` - Determines the wireless interface to be used when `initramfs-wifi=` enables the script without specifying an interface name. This parameter does not enable initramfs-wifi by itself.
-* `wpa_supplicant.timeout` - Determine how many seconds to wait before giving up connecting to the Wi-Fi hotspot. The default value is `30` seconds.
-
-## Update the initramfs
-
-Now that everything has been thoroughly explained, configured and tested, we can update the initramfs. Set `update_initramfs=yes` in `/etc/initramfs-tools/update-initramfs.conf` and then run this command:
+After changing `/etc/default/grub`, update the GRUB configuration:
 
 ```bash
-update-initramfs -v -c -k all
+sudo update-grub
 ```
 
-The `-v` argument causes a verbose output so that you can see what happens under the hood.
+## Additional Kernel Command-Line Parameters
 
-## Possible missing firmware
+The following parameters override settings from `wpa_supplicant.conf` or
+control debugging and timeouts:
 
-If you see the warning `Possible missing firmware` during the update, you can ignore it:
+* `wpa_supplicant.ap_scan` - Overrides the `ap_scan` value in the
+  `wpa_supplicant.conf` file in the initramfs.
+* `wpa_supplicant.country` - Overrides the `country` value in the
+  `wpa_supplicant.conf` file in the initramfs.
+* `wpa_supplicant.scan_ssid` - Overrides the `scan_ssid` value in the
+  `wpa_supplicant.conf` file in the initramfs.
+* `wpa_supplicant.ssid` - Overrides the `ssid` value in the
+  `wpa_supplicant.conf` file in the initramfs.
+* `wpa_supplicant.psk` - Overrides the `psk` value in the
+  `wpa_supplicant.conf` file in the initramfs.
+* `wpa_supplicant.debug` - Enables `wpa_supplicant` debugging when set to `yes`,
+  `1`, `2`, or `3`.
+* `wpa_supplicant.dumpconf` - Dumps the `wpa_supplicant` configuration when set
+  to `yes` or `1`.
+* `wpa_supplicant.dumplogs` - Dumps the `wpa_supplicant` logs when set to `yes`
+  or `1`.
+* `wpa_supplicant.interface` - Selects the wireless interface when
+  `initramfs-wifi=` enables the script without specifying an interface name.
+  This parameter does not enable initramfs-wifi by itself.
+* `wpa_supplicant.timeout` - Sets the number of seconds to wait for a connection.
+  The default is `30` seconds.
+
+## Updating the Initramfs
+
+After configuring and testing the connection, enable initramfs updates in
+`/etc/initramfs-tools/update-initramfs.conf`:
+
+```text
+update_initramfs=yes
+```
+
+Then rebuild the initramfs:
+
+```bash
+sudo update-initramfs -v -c -k all
+```
+
+The `-v` option enables verbose output so that you can see which files and
+modules are added.
+
+## Possible Missing Firmware
+
+Adding wireless drivers to the initramfs may produce warnings such as:
 
 ```text
 W: Possible missing firmware /lib/firmware/.../... for module ...
 ```
 
-The reason for this is that the initramfs update script determines the firmware files to be copied by running `modinfo modulename` which returns a list of filenames and in some cases filename patterns that contain wildcards like `*` and `?`. For example the Wi-Fi of a Raspberry Pi 3b depends on the kernel module `brcmfmac`. The command `modinfo brcmfmac` outputs these lines:
+These warnings are usually caused by a limitation in the initramfs scripts.
+The scripts obtain the required firmware paths by running `modinfo` for each
+module. Some modules report filename patterns containing wildcards such as `*`
+and `?` instead of literal filenames. For example, the `brcmfmac` module used by
+the Wi-Fi adapter in a Raspberry Pi 3B reports entries similar to these:
 
 ```text
 ...
@@ -259,21 +350,35 @@ firmware:       brcm/brcmfmac*-sdio.*.txt
 ...
 ```
 
-The problem is that the script behind the `update-initramfs` command interprets these entries as filenames and not as filename patterns and then "thinks" that some firmware files are missing. All other scripts I have seen on the subject of Wi-Fi in initramfs do not take this into account either. but initramfs-wifi does, it can copy these firmware files, and only then it will work in all cases. The `brcmfmac` module of the Raspberry Pi 3b for example would not work without the NVRAM config files that matches the filename pattern above. Unfortunately, the warning message remains even if everything was copied correctly.
+The standard initramfs scripts may interpret these entries as literal filenames
+and report them as missing. Many other scripts that add Wi-Fi support to an
+initramfs do not account for these patterns either. The initramfs-wifi hook
+expands the patterns and copies the matching firmware files whenever possible.
+This is important for modules such as `brcmfmac`, which may require matching
+NVRAM configuration files. The original warning may remain even when the hook
+has copied all matching files correctly.
+
+Warnings that appear only after wireless modules are added can therefore
+usually be ignored after confirming that the required firmware was copied.
+Warnings for unrelated modules or hardware should still be investigated.
 
 ## Usage
 
-Restart and you should be able to connect to dropbear via Wi-Fi.
+Restart the system. You should then be able to connect to Dropbear through
+Wi-Fi during early boot.
 
-If you don't have Dropbear installed and there is no other application that can do anything with a Wi-Fi in the initramfs, then of course it makes no sense to install this package.
+If neither Dropbear nor another initramfs application uses the network, this
+package provides no practical benefit.
 
 ## Contributing
 
-Contributions are welcome! Feel free to fork this repository and submit pull requests.
+Contributions are welcome. Feel free to fork this repository and submit a pull
+request.
 
 ## License
 
-This project is licensed under the GPLv3 License. See the COPYING file for details.
+This project is licensed under the GNU General Public License version 3 or
+later. See the `COPYING` file for details.
 
 ## Author
 
@@ -281,10 +386,11 @@ The initramfs-wifi Debian package was created by m4dm4x1337.
 
 ## Donations 🥺
 
- ❤️ Please donate ❤️
+❤️ Please donate ❤️
 
 ![QR code for donations](https://raw.githubusercontent.com/m4dm4x1337/tor-router-gnome/master/tor-router-gnome/usr/share/pixmaps/tor-router-gnome-donation.png)
 
-This project is open source, and the only income comes from the donators. If you like the project, please donate, thank you!
+This project is open source and supported by donations. If you find it useful,
+please consider contributing to its continued development.
 
 [bitcoin:bc1q9ha0l0tt7dghcpgext8jppejandefeshcukpxx](bitcoin:bc1q9ha0l0tt7dghcpgext8jppejandefeshcukpxx)

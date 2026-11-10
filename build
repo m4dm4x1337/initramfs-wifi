@@ -33,7 +33,6 @@ case "$1" in
   *)
     dpkg-buildpackage --build=binary --unsigned-changes --unsigned-source --no-check-builddeps
     lintian --allow-root "$CHANGES_FILE"
-    cp --verbose "../${PACKAGE}_${VERSION}_all.deb" ../../../http-server/
     ;;
 esac
 
