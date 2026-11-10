@@ -313,17 +313,11 @@ control debugging and timeouts:
 
 ## Updating the Initramfs
 
-After configuring and testing the connection, enable initramfs updates in
-`/etc/initramfs-tools/update-initramfs.conf`:
-
-```text
-update_initramfs=yes
-```
-
-Then rebuild the initramfs:
+After configuring and testing the connection, rebuild all existing initramfs
+images:
 
 ```bash
-sudo update-initramfs -v -c -k all
+sudo update-initramfs -v -u -k all
 ```
 
 The `-v` option enables verbose output so that you can see which files and
