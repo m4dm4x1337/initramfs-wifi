@@ -4,7 +4,6 @@ set -e
 
 PACKAGE=initramfs-wifi
 VERSION=1.1
-CHANGES_FILE="../${PACKAGE}_${VERSION}_amd64.changes"
 
 require_package() { # $1 = package
   if ! dpkg-query --show "$1" >/dev/null 2>&1; then
@@ -16,6 +15,9 @@ require_package() { # $1 = package
 require_package dpkg-dev
 require_package debhelper
 require_package lintian
+
+ARCHITECTURE=$(dpkg-architecture --query DEB_HOST_ARCH)
+CHANGES_FILE="../${PACKAGE}_${VERSION}_${ARCHITECTURE}.changes"
 
 find "./${PACKAGE}/usr/share/initramfs-tools" -type f -exec sh -n {} +
 
