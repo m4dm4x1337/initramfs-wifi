@@ -10,6 +10,13 @@ firmware into the initramfs so that the kernel can initialize Wi-Fi hardware
 before the root file system is available. It integrates with Dropbear and other
 network-capable initramfs tools.
 
+## Compatibility
+
+The package has been tested with Debian Jessie and later releases and Ubuntu
+Trusty and later releases. It is expected to remain compatible with future
+releases that provide compatible `initramfs-tools` and `wpa_supplicant`
+interfaces.
+
 ## Installation
 
 Download the Debian package and run the following command:
