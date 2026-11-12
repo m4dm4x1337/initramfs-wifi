@@ -1,3 +1,9 @@
+initramfs-wifi (1.2) experimental; urgency=medium
+
+  * Avoid rebuilding the initramfs a second time when the package is purged.
+
+ -- m4dm4x1337 <madmax@example.invalid>  Thu, 12 Nov 2026 18:19:23 +0100
+
 initramfs-wifi (1.1) experimental; urgency=medium
 
   * Include all regular wireless modules and selected staging drivers by

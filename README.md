@@ -22,7 +22,7 @@ interfaces.
 Download the Debian package and run the following command:
 
 ```bash
-sudo dpkg -i initramfs-wifi_1.1_all.deb || sudo apt-get -f install
+sudo dpkg -i initramfs-wifi_1.2_all.deb || sudo apt-get -f install
 ```
 
 Commands in this guide that change the network configuration or rebuild the

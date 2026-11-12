@@ -9,7 +9,7 @@ do_update_initramfs() {
 }
 
 case "$1" in
-  remove|purge)
+  remove)
     do_update_initramfs
     ;;
 esac
